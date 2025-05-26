@@ -2,6 +2,8 @@ import openpyxl
 import json
 import re
 from openpyxl.styles import Border, Side, Font, PatternFill, Alignment
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.utils import get_column_letter
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -495,6 +497,8 @@ class TimeTableProcessor:
         # 헤더 동적 생성을 위한 최대값 계산
         max_subjects = 1
         max_groups = 1
+        aggregated_teacher_subject_counts = {}
+        total_teachers_all = 0
         for school in school_data:
             data = school['data']
             teacher_data = {}
@@ -541,13 +545,21 @@ class TimeTableProcessor:
                 all_subject_groups.add(subject_group)
         
         # 교과(군)별 통계 헤더
-        for group in sorted(all_subject_groups):
+        subject_group_column_map = {}
+        color_palette = [
+            'FFCCCC', 'CCFFCC', 'CCCCFF', 'FFE4B5',
+            'E6E6FA', 'FFFFCC', 'CCFFFF', 'FFCCFF'
+        ]
+        for idx, group in enumerate(sorted(all_subject_groups)):
+            start_idx = len(headers) + 1
             headers.extend([
                 f'{group}_교사수',
                 f'{group}_총시수',
                 f'{group}_평균시수',
                 f'{group}_평균과목수'  # 추가
             ])
+            subject_group_column_map[group] = list(range(start_idx, start_idx + 4))
+        subject_group_colors = {g: color_palette[i % len(color_palette)] for i, g in enumerate(sorted(all_subject_groups))}
 
         # 3. 복수 교과(군) 통계 헤더
         for i in range(1, max_groups + 1):
@@ -586,6 +598,7 @@ class TimeTableProcessor:
                 teacher_data[teacher].append(item)
             
             total_teachers = len(teacher_data)
+            total_teachers_all += total_teachers
             
             # 학교명 입력
             ws3.cell(row=current_row, column=col, value=school_name)
@@ -596,6 +609,7 @@ class TimeTableProcessor:
             for teacher in teacher_data:
                 subject_count = len(teacher_data[teacher])
                 teacher_subject_counts[subject_count] = teacher_subject_counts.get(subject_count, 0) + 1
+                aggregated_teacher_subject_counts[subject_count] = aggregated_teacher_subject_counts.get(subject_count, 0) + 1
             
             for i in range(1, max_subjects + 1):
                 count = teacher_subject_counts.get(i, 0)
@@ -637,7 +651,7 @@ class TimeTableProcessor:
                     group_subjects.append(len(teacher_subjects))  # add 대신 append 사용
 
                 # 평균 과목 수 계산 - 전체 교사의 과목 수 합계를 교사 수로 나눔
-                avg_subjects = round(sum(group_subjects) / teacher_count, 1) if teacher_count > 0 else 0
+                avg_subjects = round(sum(group_subjects) / teacher_count, 2) if teacher_count > 0 else 0
                 
                 # 수식 설정을 위해 셀 참조 구하기
                 count_cell = ws3.cell(row=current_row, column=col)
@@ -697,11 +711,11 @@ class TimeTableProcessor:
             # 4. 총계 데이터
             total_teachers = len(teacher_data)
             total_hours = sum(item['총시수'] for item in data)
-            avg_hours = round(total_hours / total_teachers, 1) if total_teachers > 0 else 0  # 평균시수 계산
+            avg_hours = round(total_hours / total_teachers, 2) if total_teachers > 0 else 0  # 평균시수 계산
             
             total_subjects = sum(count * subjects for subjects, count in teacher_subject_counts.items())
             unique_subjects = len(set(item['과목'] for item in data))  # 중복 제거한 과목 수
-            avg_subjects = round(total_subjects / total_teachers, 1) if total_teachers > 0 else 0
+            avg_subjects = round(total_subjects / total_teachers, 2) if total_teachers > 0 else 0
             
             ws3.cell(row=current_row, column=col, value=total_teachers)
             col += 1
@@ -715,6 +729,34 @@ class TimeTableProcessor:
             col += 1
             ws3.cell(row=current_row, column=col, value=avg_subjects)
             current_row += 1
+
+        data_end_row = current_row - 1
+
+        if not single_school:
+            teacher_col = headers.index('전체_교사수') + 1
+            avg_col = headers.index('평균시수') + 1
+            cats = Reference(ws3, min_col=1, min_row=2, max_row=data_end_row)
+            data_ref = Reference(ws3, min_col=teacher_col, max_col=avg_col, min_row=1, max_row=data_end_row)
+            bar_chart = BarChart()
+            bar_chart.title = "교사수 및 평균시수"
+            bar_chart.add_data(data_ref, titles_from_data=True)
+            bar_chart.set_categories(cats)
+            ws3.add_chart(bar_chart, f"{get_column_letter(ws3.max_column + 2)}2")
+
+            summary_start = data_end_row + 2
+            ws3.cell(row=summary_start, column=1, value="과목수")
+            ws3.cell(row=summary_start, column=2, value="비율")
+            for i in range(1, max_subjects + 1):
+                percent = round((aggregated_teacher_subject_counts.get(i, 0) / total_teachers_all) * 100, 2) if total_teachers_all > 0 else 0
+                ws3.cell(row=summary_start + i, column=1, value=f"{i}과목")
+                ws3.cell(row=summary_start + i, column=2, value=percent)
+            pie = PieChart()
+            labels = Reference(ws3, min_col=1, min_row=summary_start + 1, max_row=summary_start + max_subjects)
+            data = Reference(ws3, min_col=2, min_row=summary_start, max_row=summary_start + max_subjects)
+            pie.add_data(data, titles_from_data=True)
+            pie.set_categories(labels)
+            pie.title = "과목수별 비율"
+            ws3.add_chart(pie, f"{get_column_letter(ws3.max_column + 2)}{summary_start}")
 
         # 단일 학교 모드인 경우 세로 형태로 변환
         if single_school and len(school_data) == 1:
@@ -746,6 +788,27 @@ class TimeTableProcessor:
                     if cell.row == 1:  # 헤더 행
                         cell.font = header_font
                         cell.fill = header_fill
+
+        # 교과별 색상 적용 및 평균시수 서식 지정
+        for group, cols in subject_group_column_map.items():
+            fill = PatternFill(start_color=subject_group_colors[group], end_color=subject_group_colors[group], fill_type='solid')
+            avg_col = cols[2]
+            for row in range(1, data_end_row + 1):
+                for col_idx in cols:
+                    ws3.cell(row=row, column=col_idx).fill = fill
+                if row >= 2:
+                    ws3.cell(row=row, column=avg_col).number_format = '0.00'
+
+        avg_hours_col = headers.index('평균시수') + 1
+        for row in range(2, data_end_row + 1):
+            ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'
+
+        # 수식 셀 색상 지정
+        formula_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
+        for row_cells in ws3.iter_rows(min_row=2, max_row=ws3.max_row):
+            for c in row_cells:
+                if c.data_type == 'f':
+                    c.fill = formula_fill
 
         # 열 너비 자동 조정 (학교통계 시트)
         if single_school and len(school_data) == 1:
