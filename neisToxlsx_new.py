@@ -3,6 +3,7 @@ import json
 import re
 from openpyxl.styles import Border, Side, Font, PatternFill, Alignment, GradientFill
 from openpyxl.chart import BarChart, PieChart, Reference, DoughnutChart
+from openpyxl.chart.label import DataLabelList
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import DataBarRule, ColorScaleRule
 import tkinter as tk
@@ -829,7 +830,12 @@ class TimeTableProcessor:
                 bar.title = "교과(군)별 평균시수"
                 bar.add_data(data, titles_from_data=False)
                 bar.set_categories(cats)
-                ws3.add_chart(bar, f"D2")
+                bar.legend = None
+                bar.dataLabels = DataLabelList()
+                bar.dataLabels.showVal = True
+                bar.width = 12
+                bar.height = 8
+                ws3.add_chart(bar, "D2")
 
             # n과목 교사 비율 도넛차트 데이터 수집
             ratio_rows = []
@@ -850,7 +856,11 @@ class TimeTableProcessor:
                 donut.title = "과목수별 비율"
                 donut.add_data(data, titles_from_data=False)
                 donut.set_categories(cats)
-                ws3.add_chart(donut, f"D{donut_start}")
+                donut.dataLabels = DataLabelList()
+                donut.dataLabels.showPercent = True
+                donut.width = 12
+                donut.height = 8
+                ws3.add_chart(donut, "L2")
 
         # 스타일 적용
         thin_border = Border(
