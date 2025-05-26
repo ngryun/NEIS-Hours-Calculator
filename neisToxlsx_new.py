@@ -650,6 +650,9 @@ class TimeTableProcessor:
                         f"=SUMIFS('교사별총시수'!$D:$D,"
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
+                    avg_cell.value = (
+                        f"=IFERROR(AVERAGEIF('교사별총시수'!$C:$C,\"*{group}*\",'교사별총시수'!$D:$D),0)"
+                    )
                 else:
                     school_ref = f"$A{current_row}"
                     count_cell.value = (
@@ -661,10 +664,11 @@ class TimeTableProcessor:
                         f"'교사별총시수'!$A:$A,{school_ref},"
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
-
-                avg_cell.value = (
-                    f"=IFERROR({total_cell.coordinate}/{count_cell.coordinate},0)"
-                )
+                    avg_cell.value = (
+                        f"=IFERROR(AVERAGEIFS('교사별총시수'!$D:$D,"
+                        f"'교사별총시수'!$A:$A,{school_ref},"
+                        f"'교사별총시수'!$C:$C,\"*{group}*\"),0)"
+                    )
                 ws3.cell(row=current_row, column=col + 3, value=avg_subjects)  # 평균과목수 입력
                 col += 4  # 컬럼 개수 4로 수정 (3에서 4로)
             
