@@ -853,6 +853,7 @@ class TimeTableProcessor:
                 cats = Reference(ws3, min_col=1, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
                 data = Reference(ws3, min_col=2, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
                 donut = DoughnutChart()
+                donut.style = 3  # 차트 디자인 3 적용
                 donut.title = "과목수별 비율"
                 donut.add_data(data, titles_from_data=False)
                 donut.set_categories(cats)
