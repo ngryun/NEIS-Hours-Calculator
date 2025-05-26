@@ -795,17 +795,70 @@ class TimeTableProcessor:
             pie.set_categories(labels)
             pie.title = "과목수별 비율"
             ws3.add_chart(pie, f"A{summary_start + max_subjects + 2}")
-
-        # 단일 학교 모드인 경우 세로 형태로 변환
-        if single_school and len(school_data) == 1:
+        else:
+            # 단일 학교 모드: 세로 형태로 변환
             headers_row = [ws3.cell(row=1, column=i).value for i in range(1, ws3.max_column + 1)]
             values_row = [ws3.cell(row=2, column=i).value for i in range(1, ws3.max_column + 1)]
             ws3.delete_rows(1, ws3.max_row)
             ws3.cell(row=1, column=1, value="항목")
             ws3.cell(row=1, column=2, value="값")
+            row_map = {}
             for idx, (h, v) in enumerate(zip(headers_row, values_row), start=2):
                 ws3.cell(row=idx, column=1, value=h)
                 ws3.cell(row=idx, column=2, value=v)
+                row_map[h] = idx
+
+            # 단일학교용 차트 데이터 추출
+            ratio_rows = []
+            for h in headers_row:
+                m = re.match(r"(\d+)과목_비율", str(h))
+                if m:
+                    r = row_map[h]
+                    ratio_rows.append(r)
+                    ws3.cell(row=r, column=1, value=f"{m.group(1)}과목")
+
+            if ratio_rows:
+                labels = Reference(ws3, min_col=1, min_row=min(ratio_rows), max_row=max(ratio_rows))
+                data = Reference(ws3, min_col=2, min_row=min(ratio_rows), max_row=max(ratio_rows))
+                pie = PieChart()
+                pie.add_data(data, titles_from_data=False)
+                pie.set_categories(labels)
+                pie.title = "과목수별 비율"
+                ws3.add_chart(pie, "D2")
+
+            group_teacher_rows = []
+            for h in headers_row:
+                m = re.match(r"(.+)_교과\(군\)_교사수", str(h))
+                if m:
+                    r = row_map[h]
+                    group_teacher_rows.append(r)
+                    ws3.cell(row=r, column=1, value=m.group(1))
+
+            if group_teacher_rows:
+                labels = Reference(ws3, min_col=1, min_row=min(group_teacher_rows), max_row=max(group_teacher_rows))
+                data = Reference(ws3, min_col=2, min_row=min(group_teacher_rows), max_row=max(group_teacher_rows))
+                bar = BarChart()
+                bar.add_data(data, titles_from_data=False)
+                bar.set_categories(labels)
+                bar.title = "교과(군)별 교사수"
+                ws3.add_chart(bar, "D17")
+
+            group_avg_rows = []
+            for h in headers_row:
+                m = re.match(r"(.+)_교과\(군\)_교사의_평균시수", str(h))
+                if m:
+                    r = row_map[h]
+                    group_avg_rows.append(r)
+                    ws3.cell(row=r, column=1, value=f"{m.group(1)} 평균시수")
+
+            if group_avg_rows:
+                labels = Reference(ws3, min_col=1, min_row=min(group_avg_rows), max_row=max(group_avg_rows))
+                data = Reference(ws3, min_col=2, min_row=min(group_avg_rows), max_row=max(group_avg_rows))
+                bar = BarChart()
+                bar.add_data(data, titles_from_data=False)
+                bar.set_categories(labels)
+                bar.title = "평균시수"
+                ws3.add_chart(bar, "D32")
 
         # 스타일 적용
         thin_border = Border(
