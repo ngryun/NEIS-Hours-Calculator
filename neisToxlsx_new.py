@@ -854,6 +854,8 @@ class TimeTableProcessor:
         self.autofit_columns(ws3)
         # 학교통계 시트의 A열은 학교명이 길어질 수 있어 넉넉하게 설정
         ws3.column_dimensions['A'].width = 40
+        # B열은 비고 등의 짧은 값을 담으므로 고정 폭 지정
+        ws3.column_dimensions['B'].width = 20
         # 네 번째 시트: 복수 교과(군) 조합 현황
         ws4 = wb.create_sheet(title="교과군조합현황")
         
