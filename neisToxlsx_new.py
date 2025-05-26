@@ -553,12 +553,13 @@ class TimeTableProcessor:
         for idx, group in enumerate(sorted(all_subject_groups)):
             start_idx = len(headers) + 1
             headers.extend([
-                f'{group}_교사수',
-                f'{group}_총시수',
-                f'{group}_평균시수',
+                f'{group}_교과(군)_교사수',
+                f'{group}_교과(군)_교사의_총시수',
+                f'{group}_교과(군)_과목의_총시수',
+                f'{group}_교과(군)_교사의_평균시수',
                 f'{group}_평균과목수'  # 추가
             ])
-            subject_group_column_map[group] = list(range(start_idx, start_idx + 4))
+            subject_group_column_map[group] = list(range(start_idx, start_idx + 5))
         subject_group_colors = {g: color_palette[i % len(color_palette)] for i, g in enumerate(sorted(all_subject_groups))}
 
         # 3. 복수 교과(군) 통계 헤더
@@ -655,14 +656,19 @@ class TimeTableProcessor:
                 
                 # 수식 설정을 위해 셀 참조 구하기
                 count_cell = ws3.cell(row=current_row, column=col)
-                total_cell = ws3.cell(row=current_row, column=col + 1)
-                avg_cell = ws3.cell(row=current_row, column=col + 2)
+                teacher_total_cell = ws3.cell(row=current_row, column=col + 1)
+                subject_total_cell = ws3.cell(row=current_row, column=col + 2)
+                avg_cell = ws3.cell(row=current_row, column=col + 3)
 
                 if single_school:
                     count_cell.value = f"=COUNTIF('교사별총시수'!$C:$C,\"*{group}*\")"
-                    total_cell.value = (
+                    teacher_total_cell.value = (
                         f"=SUMIFS('교사별총시수'!$D:$D,"
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
+                    )
+                    subject_total_cell.value = (
+                        f"=SUMIFS('교사별시수현황'!$D:$D,"
+                        f"'교사별시수현황'!$E:$E,\"{group}\")"
                     )
                     avg_cell.value = (
                         f"=IFERROR(AVERAGEIF('교사별총시수'!$C:$C,\"*{group}*\",'교사별총시수'!$D:$D),0)"
@@ -673,18 +679,23 @@ class TimeTableProcessor:
                         f"=COUNTIFS('교사별총시수'!$A:$A,{school_ref},"
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
-                    total_cell.value = (
+                    teacher_total_cell.value = (
                         f"=SUMIFS('교사별총시수'!$D:$D,"
                         f"'교사별총시수'!$A:$A,{school_ref},"
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
+                    )
+                    subject_total_cell.value = (
+                        f"=SUMIFS('교사별시수현황'!$D:$D,"
+                        f"'교사별시수현황'!$A:$A,{school_ref},"
+                        f"'교사별시수현황'!$E:$E,\"{group}\")"
                     )
                     avg_cell.value = (
                         f"=IFERROR(AVERAGEIFS('교사별총시수'!$D:$D,"
                         f"'교사별총시수'!$A:$A,{school_ref},"
                         f"'교사별총시수'!$C:$C,\"*{group}*\"),0)"
                     )
-                ws3.cell(row=current_row, column=col + 3, value=avg_subjects)  # 평균과목수 입력
-                col += 4  # 컬럼 개수 4로 수정 (3에서 4로)
+                ws3.cell(row=current_row, column=col + 4, value=avg_subjects)  # 평균과목수 입력
+                col += 5  # 컬럼 개수 5로 수정
             
             # 3. 복수 교과(군) 통계 데이터
             teacher_subject_groups = {}
@@ -805,7 +816,7 @@ class TimeTableProcessor:
         else:
             for group, cols in subject_group_column_map.items():
                 fill = PatternFill(start_color=subject_group_colors[group], end_color=subject_group_colors[group], fill_type='solid')
-                avg_col = cols[2]
+                avg_col = cols[3]
                 for row in range(1, data_end_row + 1):
                     for col_idx in cols:
                         ws3.cell(row=row, column=col_idx).fill = fill
