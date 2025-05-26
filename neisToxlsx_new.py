@@ -790,18 +790,31 @@ class TimeTableProcessor:
                         cell.fill = header_fill
 
         # 교과별 색상 적용 및 평균시수 서식 지정
-        for group, cols in subject_group_column_map.items():
-            fill = PatternFill(start_color=subject_group_colors[group], end_color=subject_group_colors[group], fill_type='solid')
-            avg_col = cols[2]
-            for row in range(1, data_end_row + 1):
-                for col_idx in cols:
-                    ws3.cell(row=row, column=col_idx).fill = fill
-                if row >= 2:
-                    ws3.cell(row=row, column=avg_col).number_format = '0.00'
+        if single_school and len(school_data) == 1:
+            # 세로 레이아웃에 맞게 색상 및 서식 적용
+            for row in range(2, ws3.max_row + 1):
+                label = str(ws3.cell(row=row, column=1).value)
+                value_cell = ws3.cell(row=row, column=2)
+                for group, color in subject_group_colors.items():
+                    if label.startswith(group):
+                        fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+                        ws3.cell(row=row, column=1).fill = fill
+                        value_cell.fill = fill
+                if '평균시수' in label:
+                    value_cell.number_format = '0.00'
+        else:
+            for group, cols in subject_group_column_map.items():
+                fill = PatternFill(start_color=subject_group_colors[group], end_color=subject_group_colors[group], fill_type='solid')
+                avg_col = cols[2]
+                for row in range(1, data_end_row + 1):
+                    for col_idx in cols:
+                        ws3.cell(row=row, column=col_idx).fill = fill
+                    if row >= 2:
+                        ws3.cell(row=row, column=avg_col).number_format = '0.00'
 
-        avg_hours_col = headers.index('평균시수') + 1
-        for row in range(2, data_end_row + 1):
-            ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'
+            avg_hours_col = headers.index('평균시수') + 1
+            for row in range(2, data_end_row + 1):
+                ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'
 
         # 수식 셀 색상 지정
         formula_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
