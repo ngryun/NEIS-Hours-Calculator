@@ -414,6 +414,13 @@ class TimeTableProcessor:
                     ws1.cell(row=current_row, column=5, value=subject_group)
                     current_row += 1
         self.autofit_columns(ws1)
+        # 과목명이 긴 경우가 많아 C열 너비를 다시 계산해 자동 맞춤
+        max_len_c = 0
+        for row in range(1, ws1.max_row + 1):
+            value = ws1.cell(row=row, column=3).value
+            if value is not None:
+                max_len_c = max(max_len_c, len(str(value)))
+        ws1.column_dimensions['C'].width = max(max_len_c + 2, 10)
 
         # 두 번째 시트: 교사별 총계 (수정된 부분)
         ws2 = wb.create_sheet(title="교사별총시수")
@@ -553,9 +560,10 @@ class TimeTableProcessor:
         
         # 교과(군)별 통계 헤더
         subject_group_column_map = {}
+        # 좀 더 부드러운 파스텔 계열 색상 팔레트로 변경
         color_palette = [
-            'FFCCCC', 'CCFFCC', 'CCCCFF', 'FFE4B5',
-            'E6E6FA', 'FFFFCC', 'CCFFFF', 'FFCCFF'
+            'FADBD8', 'D5F5E3', 'D6EAF8', 'FCF3CF',
+            'E8DAEF', 'F9E79F', 'D1F2EB', 'FAD7A0'
         ]
         for idx, group in enumerate(sorted(all_subject_groups)):
             start_idx = len(headers) + 1
@@ -794,7 +802,8 @@ class TimeTableProcessor:
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
-        header_fill = PatternFill(start_color='D3D3D3', end_color='D3D3D3', fill_type='solid')
+        # 헤더를 은은한 파스텔 블루 색상으로 변경하여 가독성 향상
+        header_fill = PatternFill(start_color='B7C9E2', end_color='B7C9E2', fill_type='solid')
         header_font = Font(bold=True)
         
         # 모든 시트에 스타일 적용
@@ -843,6 +852,10 @@ class TimeTableProcessor:
 
         # 열 너비 자동 조정 (학교통계 시트)
         self.autofit_columns(ws3)
+        # 학교통계 시트의 A열은 학교명이 길어질 수 있어 넉넉하게 설정
+        ws3.column_dimensions['A'].width = 40
+        # B열은 비고 등의 짧은 값을 담으므로 고정 폭 지정
+        ws3.column_dimensions['B'].width = 20
         # 네 번째 시트: 복수 교과(군) 조합 현황
         ws4 = wb.create_sheet(title="교과군조합현황")
         
