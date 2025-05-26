@@ -2,7 +2,7 @@ import openpyxl
 import json
 import re
 from openpyxl.styles import Border, Side, Font, PatternFill, Alignment, GradientFill
-from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart import BarChart, PieChart, Reference, DoughnutChart
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import DataBarRule, ColorScaleRule
 import tkinter as tk
@@ -803,9 +803,54 @@ class TimeTableProcessor:
             ws3.delete_rows(1, ws3.max_row)
             ws3.cell(row=1, column=1, value="항목")
             ws3.cell(row=1, column=2, value="값")
+
             for idx, (h, v) in enumerate(zip(headers_row, values_row), start=2):
                 ws3.cell(row=idx, column=1, value=h)
                 ws3.cell(row=idx, column=2, value=v)
+
+            # ----- Charts for single school -----
+            # 교과(군)별 평균시수 막대그래프 데이터 수집
+            avg_rows = []
+            for r in range(2, ws3.max_row + 1):
+                label = str(ws3.cell(row=r, column=1).value)
+                if label.endswith('_교과(군)_교사의_평균시수'):
+                    subject = label.split('_')[0]
+                    avg_rows.append((subject, r))
+
+            chart_start = ws3.max_row + 2
+            for idx, (subject, row) in enumerate(avg_rows, start=0):
+                ws3.cell(row=chart_start + idx, column=1, value=subject)
+                ws3.cell(row=chart_start + idx, column=2, value=ws3.cell(row=row, column=2).value)
+
+            if avg_rows:
+                cats = Reference(ws3, min_col=1, min_row=chart_start, max_row=chart_start + len(avg_rows) - 1)
+                data = Reference(ws3, min_col=2, min_row=chart_start, max_row=chart_start + len(avg_rows) - 1)
+                bar = BarChart()
+                bar.title = "교과(군)별 평균시수"
+                bar.add_data(data, titles_from_data=False)
+                bar.set_categories(cats)
+                ws3.add_chart(bar, f"D2")
+
+            # n과목 교사 비율 도넛차트 데이터 수집
+            ratio_rows = []
+            for r in range(2, chart_start):
+                label = str(ws3.cell(row=r, column=1).value)
+                if label.endswith('과목_비율') and not label.endswith('개교과군_비율'):
+                    ratio_rows.append((label.split('_')[0], r))
+
+            donut_start = chart_start + len(avg_rows) + 1
+            for idx, (label, row) in enumerate(ratio_rows, start=0):
+                ws3.cell(row=donut_start + idx, column=1, value=label)
+                ws3.cell(row=donut_start + idx, column=2, value=ws3.cell(row=row, column=2).value)
+
+            if ratio_rows:
+                cats = Reference(ws3, min_col=1, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
+                data = Reference(ws3, min_col=2, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
+                donut = DoughnutChart()
+                donut.title = "과목수별 비율"
+                donut.add_data(data, titles_from_data=False)
+                donut.set_categories(cats)
+                ws3.add_chart(donut, f"D{donut_start}")
 
         # 스타일 적용
         thin_border = Border(
