@@ -623,7 +623,6 @@ class TimeTableProcessor:
                 stats = subject_group_stats.get(group, {'teachers': set(), 'total_hours': 0})
                 teacher_count = len(stats['teachers'])
                 total_hours = stats['total_hours']
-                avg_hours = round(total_hours / teacher_count, 1) if teacher_count > 0 else 0
                 
                 # 교과(군)별 평균과목수 계산
                 # 교과(군)별 평균과목수 계산 부분 수정
@@ -640,12 +639,33 @@ class TimeTableProcessor:
                 # 평균 과목 수 계산 - 전체 교사의 과목 수 합계를 교사 수로 나눔
                 avg_subjects = round(sum(group_subjects) / teacher_count, 1) if teacher_count > 0 else 0
                 
-                school_ref = f"$A{current_row}"
-                formula = f"=COUNTIFS('교사별총시수'!$A:$A,{school_ref},'교사별총시수'!$C:$C,\"*{group}*\")"
-                ws3.cell(row=current_row, column=col, value=formula)
-                ws3.cell(row=current_row, column=col+1, value=total_hours)
-                ws3.cell(row=current_row, column=col+2, value=avg_hours)
-                ws3.cell(row=current_row, column=col+3, value=avg_subjects)  # 평균과목수 입력
+                # 수식 설정을 위해 셀 참조 구하기
+                count_cell = ws3.cell(row=current_row, column=col)
+                total_cell = ws3.cell(row=current_row, column=col + 1)
+                avg_cell = ws3.cell(row=current_row, column=col + 2)
+
+                if single_school:
+                    count_cell.value = f"=COUNTIF('교사별총시수'!$C:$C,\"*{group}*\")"
+                    total_cell.value = (
+                        f"=SUMIFS('교사별시수현황'!$D:$D,"
+                        f"'교사별시수현황'!$E:$E,\"{group}\")"
+                    )
+                else:
+                    school_ref = f"$A{current_row}"
+                    count_cell.value = (
+                        f"=COUNTIFS('교사별총시수'!$A:$A,{school_ref},"
+                        f"'교사별총시수'!$C:$C,\"*{group}*\")"
+                    )
+                    total_cell.value = (
+                        f"=SUMIFS('교사별시수현황'!$D:$D," 
+                        f"'교사별시수현황'!$A:$A,{school_ref},"
+                        f"'교사별시수현황'!$E:$E,\"{group}\")"
+                    )
+
+                avg_cell.value = (
+                    f"=IFERROR({total_cell.coordinate}/{count_cell.coordinate},0)"
+                )
+                ws3.cell(row=current_row, column=col + 3, value=avg_subjects)  # 평균과목수 입력
                 col += 4  # 컬럼 개수 4로 수정 (3에서 4로)
             
             # 3. 복수 교과(군) 통계 데이터
