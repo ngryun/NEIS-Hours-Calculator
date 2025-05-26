@@ -72,7 +72,23 @@ class TimeTableProcessor:
         self.status_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5,0), pady=5)
         status_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
         self.status_text.configure(yscrollcommand=status_scrollbar.set)
-        
+
+        # 통계 모드 선택 영역
+        option_frame = ttk.LabelFrame(main_frame, text="통계 모드")
+        option_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        self.mode_var = tk.StringVar(value="single")
+        single_radio = ttk.Radiobutton(option_frame,
+                                       text="단일 학교 (파일 합침)",
+                                       variable=self.mode_var,
+                                       value="single")
+        multi_radio = ttk.Radiobutton(option_frame,
+                                      text="학교별 통계",
+                                      variable=self.mode_var,
+                                      value="multi")
+        single_radio.pack(side=tk.LEFT, padx=5)
+        multi_radio.pack(side=tk.LEFT, padx=5)
+
         # 하단 버튼 영역
         bottom_frame = ttk.Frame(main_frame)
         bottom_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -284,16 +300,20 @@ class TimeTableProcessor:
         if not hasattr(self, 'file_paths'):
             messagebox.showwarning("경고", "먼저 파일을 선택해주세요.")
             return
-            
+
         try:
             self.add_log("파일 처리 시작...")
             school_data = []  # 각 학교별 데이터를 저장할 리스트
             school_names = []  # 학교명을 저장할 리스트
-            
+
+            single_mode = self.mode_var.get() == "single"
+            combined_data = []
+            combined_school_name = None
+
             # 교과(군) 모집 데이터 불러오기
             subject_group_mapping = self.load_subject_group_mapping("subject_group_mapping.json")
             self.add_log("교과(군) 매핑 데이터를 불러왔습니다.")
-            
+
             # 선택된 모든 파일 처리
             for file_path in self.file_paths:
                 # 파일명에서 괄호 안의 내용을 추출
@@ -305,22 +325,33 @@ class TimeTableProcessor:
                     school_name = school_name[:-1] + '고등학교'
 
                 school_names.append(school_name)
-                
+
                 self.add_log(f"파일 로드 중: {filename} (학교명: {school_name})")
                 wb = openpyxl.load_workbook(file_path, data_only=True)
                 results = self.process_workbook(wb)
                 wb.close()
-                
-                # 각 학교의 데이터를 별도로 저장
-                school_data.append({
-                    'school_name': school_name,
-                    'data': results
-                })
-            
-            if school_data:
-                # 저장 경로 자동 설정
+
+                if single_mode:
+                    if combined_school_name is None:
+                        combined_school_name = school_name
+                    combined_data.extend(results)
+                else:
+                    school_data.append({
+                        'school_name': school_name,
+                        'data': results
+                    })
+
+            if single_mode and combined_data:
                 output_file = os.path.join(os.getcwd(), "결과집계표.xlsx")
-                self.save_results(school_data, output_file, subject_group_mapping, school_names)
+                school_data = [{
+                    'school_name': combined_school_name or '단일학교',
+                    'data': combined_data
+                }]
+                self.save_results(school_data, output_file, subject_group_mapping, school_names, single_school=True)
+                self.add_log("결과 파일이 저장되었습니다.")
+            elif not single_mode and school_data:
+                output_file = os.path.join(os.getcwd(), "결과집계표.xlsx")
+                self.save_results(school_data, output_file, subject_group_mapping, school_names, single_school=False)
                 self.add_log("결과 파일이 저장되었습니다.")
             else:
                 self.add_log("처리할 데이터가 없습니다.")
@@ -330,7 +361,7 @@ class TimeTableProcessor:
             error_msg = f"오류 발생: {str(e)}"
             self.add_log(error_msg)
             messagebox.showerror("Error", error_msg)
-    def save_results(self, school_data, output_path, subject_group_mapping, school_names):
+    def save_results(self, school_data, output_path, subject_group_mapping, school_names, single_school=False):
         wb = openpyxl.Workbook()
         
         # 첫 번째 시트: 교사별 시수 현황 (변경 없음)
@@ -658,7 +689,18 @@ class TimeTableProcessor:
             col += 1
             ws3.cell(row=current_row, column=col, value=avg_subjects)
             current_row += 1
-        
+
+        # 단일 학교 모드인 경우 세로 형태로 변환
+        if single_school and len(school_data) == 1:
+            headers_row = [ws3.cell(row=1, column=i).value for i in range(1, ws3.max_column + 1)]
+            values_row = [ws3.cell(row=2, column=i).value for i in range(1, ws3.max_column + 1)]
+            ws3.delete_rows(1, ws3.max_row)
+            ws3.cell(row=1, column=1, value="항목")
+            ws3.cell(row=1, column=2, value="값")
+            for idx, (h, v) in enumerate(zip(headers_row, values_row), start=2):
+                ws3.cell(row=idx, column=1, value=h)
+                ws3.cell(row=idx, column=2, value=v)
+
         # 스타일 적용
         thin_border = Border(
             left=Side(style='thin'),
@@ -678,13 +720,17 @@ class TimeTableProcessor:
                     if cell.row == 1:  # 헤더 행
                         cell.font = header_font
                         cell.fill = header_fill
-        
+
         # 열 너비 자동 조정 (학교통계 시트)
-        ws3.column_dimensions['A'].width = 25  # 학교명 열 너비
-        for column_cells in ws3.columns:
-            if column_cells[0].column_letter != 'A':  # 학교명 열 제외
-                length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
-                ws3.column_dimensions[column_cells[0].column_letter].width = max(length + 2, 12)
+        if single_school and len(school_data) == 1:
+            ws3.column_dimensions['A'].width = 25
+            ws3.column_dimensions['B'].width = 15
+        else:
+            ws3.column_dimensions['A'].width = 25  # 학교명 열 너비
+            for column_cells in ws3.columns:
+                if column_cells[0].column_letter != 'A':  # 학교명 열 제외
+                    length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
+                    ws3.column_dimensions[column_cells[0].column_letter].width = max(length + 2, 12)
         # 네 번째 시트: 복수 교과(군) 조합 현황
         ws4 = wb.create_sheet(title="교과군조합현황")
         
