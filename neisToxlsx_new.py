@@ -5,6 +5,8 @@ from openpyxl.styles import Border, Side, Font, PatternFill, Alignment
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+import subprocess
+import platform
 from datetime import datetime
 
 class TimeTableProcessor:
@@ -110,6 +112,21 @@ class TimeTableProcessor:
         self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
         self.status_text.see(tk.END)
         self.root.update()
+
+    def open_file(self, path):
+        """Save 작업 후 파일을 여는 OS별 함수"""
+        if not self.auto_open_var.get():
+            return
+        system = platform.system()
+        try:
+            if system == 'Windows':
+                os.startfile(path)
+            elif system == 'Darwin':
+                subprocess.Popen(['open', path])
+            else:
+                subprocess.Popen(['xdg-open', path])
+        except Exception as e:
+            self.add_log(f"파일 자동 열기에 실패했습니다: {e}")
     def filter_subject_groups(self, subject_groups):
         """교과 그룹 필터링 규칙"""
         # 디버깅용 출력 추가
@@ -742,7 +759,7 @@ class TimeTableProcessor:
         # 엑셀 파일 저장
         try:
             wb.save(output_path)
-            os.startfile(output_path)
+            self.open_file(output_path)
         except PermissionError:
             base, ext = os.path.splitext(output_path)
             count = 2
@@ -750,7 +767,7 @@ class TimeTableProcessor:
                 new_output_path = f"{base}({count}){ext}"
                 try:
                     wb.save(new_output_path)
-                    os.startfile(new_output_path)
+                    self.open_file(new_output_path)
                     break
                 except PermissionError:
                     count += 1
