@@ -640,7 +640,9 @@ class TimeTableProcessor:
                 # 평균 과목 수 계산 - 전체 교사의 과목 수 합계를 교사 수로 나눔
                 avg_subjects = round(sum(group_subjects) / teacher_count, 1) if teacher_count > 0 else 0
                 
-                ws3.cell(row=current_row, column=col, value=teacher_count)
+                school_ref = f"$A{current_row}"
+                formula = f"=COUNTIFS('교사별총시수'!$A:$A,{school_ref},'교사별총시수'!$C:$C,\"*{group}*\")"
+                ws3.cell(row=current_row, column=col, value=formula)
                 ws3.cell(row=current_row, column=col+1, value=total_hours)
                 ws3.cell(row=current_row, column=col+2, value=avg_hours)
                 ws3.cell(row=current_row, column=col+3, value=avg_subjects)  # 평균과목수 입력
