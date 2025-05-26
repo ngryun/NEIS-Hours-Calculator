@@ -647,8 +647,8 @@ class TimeTableProcessor:
                 if single_school:
                     count_cell.value = f"=COUNTIF('교사별총시수'!$C:$C,\"*{group}*\")"
                     total_cell.value = (
-                        f"=SUMIFS('교사별시수현황'!$D:$D,"
-                        f"'교사별시수현황'!$E:$E,\"{group}\")"
+                        f"=SUMIFS('교사별총시수'!$D:$D,"
+                        f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
                 else:
                     school_ref = f"$A{current_row}"
@@ -657,9 +657,9 @@ class TimeTableProcessor:
                         f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
                     total_cell.value = (
-                        f"=SUMIFS('교사별시수현황'!$D:$D," 
-                        f"'교사별시수현황'!$A:$A,{school_ref},"
-                        f"'교사별시수현황'!$E:$E,\"{group}\")"
+                        f"=SUMIFS('교사별총시수'!$D:$D,"
+                        f"'교사별총시수'!$A:$A,{school_ref},"
+                        f"'교사별총시수'!$C:$C,\"*{group}*\")"
                     )
 
                 avg_cell.value = (
