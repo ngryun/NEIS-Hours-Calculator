@@ -1,9 +1,10 @@
 import openpyxl
 import json
 import re
-from openpyxl.styles import Border, Side, Font, PatternFill, Alignment
+from openpyxl.styles import Border, Side, Font, PatternFill, Alignment, GradientFill
 from openpyxl.chart import BarChart, PieChart, Reference
 from openpyxl.utils import get_column_letter
+from openpyxl.formatting.rule import DataBarRule, ColorScaleRule
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -560,10 +561,10 @@ class TimeTableProcessor:
         
         # 교과(군)별 통계 헤더
         subject_group_column_map = {}
-        # 좀 더 부드러운 파스텔 계열 색상 팔레트로 변경
+        # 전문적인 파스텔 톤 색상 팔레트 적용
         color_palette = [
-            'FADBD8', 'D5F5E3', 'D6EAF8', 'FCF3CF',
-            'E8DAEF', 'F9E79F', 'D1F2EB', 'FAD7A0'
+            'AED6F1', 'A9DFBF', 'F9E79F', 'F5CBA7',
+            'D2B4DE', 'A9CCE3', 'FADBD8', 'D7BDE2'
         ]
         for idx, group in enumerate(sorted(all_subject_groups)):
             start_idx = len(headers) + 1
@@ -594,9 +595,20 @@ class TimeTableProcessor:
             '평균_과목수'
         ])
         
-        # 헤더 쓰기
+        # 헤더 쓰기 (이모지 아이콘 포함)
+        emoji_map = {
+            '학교명': '🏫',
+            '전체_교사수': '👩\u200d🏫',
+            '전체_시수': '⏱️',
+            '평균시수': '📊',
+            '전체_과목수': '📚',
+            '개설_과목수': '🆕',
+            '평균_과목수': '💡'
+        }
         for col, header in enumerate(headers, 1):
-            ws3.cell(row=1, column=col, value=header)
+            icon = emoji_map.get(header, '')
+            display = f"{header} {icon}" if icon else header
+            ws3.cell(row=1, column=col, value=display)
         
         # 데이터 입력 (각 학교별로)
         current_row = 2
@@ -802,8 +814,8 @@ class TimeTableProcessor:
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
-        # 헤더를 은은한 파스텔 블루 색상으로 변경하여 가독성 향상
-        header_fill = PatternFill(start_color='B7C9E2', end_color='B7C9E2', fill_type='solid')
+        # 대시보드 스타일 헤더용 그라데이션 배경 설정
+        header_fill = GradientFill(stop=('DCEFFB', 'E8DAEF'))
         header_font = Font(bold=True)
         
         # 모든 시트에 스타일 적용
@@ -842,6 +854,43 @@ class TimeTableProcessor:
             avg_hours_col = headers.index('평균시수') + 1
             for row in range(2, data_end_row + 1):
                 ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'
+
+            # 조건부 서식: 데이터 바 및 컬러 스케일 적용
+            teacher_col_letter = get_column_letter(teacher_col)
+            avg_hours_col_letter = get_column_letter(avg_hours_col)
+            ws3.conditional_formatting.add(
+                f"{teacher_col_letter}2:{teacher_col_letter}{data_end_row}",
+                DataBarRule(start_type='num', start_value=0, end_type='max', color='5DADE2')
+            )
+            ws3.conditional_formatting.add(
+                f"{avg_hours_col_letter}2:{avg_hours_col_letter}{data_end_row}",
+                ColorScaleRule(start_type='min', start_color='FFFFFF', mid_type='percentile', mid_value=50,
+                               mid_color='FFF5CC', end_type='max', end_color='A9DFBF')
+            )
+
+            # KPI 카드 작성
+            kpi_start = ws3.max_row + 2
+            kpis = [
+                ('학교수', len(school_data), '🏫'),
+                ('총 교사수', total_teachers_all, '👩\u200d🏫'),
+                ('총 시수', total_all_hours, '⏱️'),
+                (
+                    '평균 시수',
+                    round(total_all_hours / total_teachers_all, 2) if total_teachers_all else 0,
+                    '📊'
+                )
+            ]
+            card_width = 4
+            for idx, (label, value, icon) in enumerate(kpis):
+                start_col = 1 + idx * card_width
+                end_col = start_col + card_width - 1
+                ws3.merge_cells(start_row=kpi_start, start_column=start_col,
+                                end_row=kpi_start, end_column=end_col)
+                cell = ws3.cell(row=kpi_start, column=start_col, value=f"{icon} {label}: {value}")
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.font = Font(bold=True)
+                cell.fill = GradientFill(stop=('FFFFFF', 'D6EAF8'))
+            ws3.row_dimensions[kpi_start].height = 25
 
         # 수식 셀 색상 지정
         formula_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
