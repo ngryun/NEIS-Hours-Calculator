@@ -131,6 +131,16 @@ class TimeTableProcessor:
         self.status_text.see(tk.END)
         self.root.update()
 
+    def autofit_columns(self, ws, min_width=10, padding=2):
+        """워크시트의 열 너비를 내용에 맞게 자동 조정"""
+        for column_cells in ws.columns:
+            max_length = 0
+            for cell in column_cells:
+                if cell.value is not None:
+                    max_length = max(max_length, len(str(cell.value)))
+            adjusted_width = max(max_length + padding, min_width)
+            ws.column_dimensions[column_cells[0].column_letter].width = adjusted_width
+
     def open_file(self, path):
         """Save 작업 후 파일을 여는 OS별 함수"""
         if not self.auto_open_var.get():
@@ -310,7 +320,7 @@ class TimeTableProcessor:
 
             single_mode = self.mode_var.get() == "single"
             combined_data = []
-            combined_school_name = None
+            combined_school_name = "단일학교" if single_mode else None
 
             # 교과(군) 모집 데이터 불러오기
             subject_group_mapping = self.load_subject_group_mapping("subject_group_mapping.json")
@@ -322,9 +332,11 @@ class TimeTableProcessor:
                 filename = os.path.basename(file_path)
                 school_match = re.search(r'\((.*?)\)', filename)
                 school_name = school_match.group(1) if school_match else "알수없음"
-                    # 학교명 수정 ('xx고'를 'xx고등학교'로)
+                # 학교명 수정 ('xx고'를 'xx고등학교'로)
                 if school_name.endswith('고'):
                     school_name = school_name[:-1] + '고등학교'
+                if single_mode:
+                    school_name = "단일학교"
 
                 school_names.append(school_name)
 
@@ -334,8 +346,6 @@ class TimeTableProcessor:
                 wb.close()
 
                 if single_mode:
-                    if combined_school_name is None:
-                        combined_school_name = school_name
                     combined_data.extend(results)
                 else:
                     school_data.append({
@@ -403,6 +413,7 @@ class TimeTableProcessor:
                     subject_group = subject_group_mapping.get(subject_key, '기타')
                     ws1.cell(row=current_row, column=5, value=subject_group)
                     current_row += 1
+        self.autofit_columns(ws1)
 
         # 두 번째 시트: 교사별 총계 (수정된 부분)
         ws2 = wb.create_sheet(title="교사별총시수")
@@ -481,11 +492,7 @@ class TimeTableProcessor:
         ws2.cell(row=current_row, column=2, value="전체 시수")
         ws2.cell(row=current_row, column=4, value=total_all_hours)
                 
-        # 두 번째 시트 열 너비 자동 맞춤
-        for column_cells in ws2.columns:
-            max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
-            adjusted_width = max(max_length + 2, 15)
-            ws2.column_dimensions[column_cells[0].column_letter].width = adjusted_width
+        self.autofit_columns(ws2)
         
         # 세 번째 시트: 학교통계
         ws3 = wb.create_sheet(title="학교통계")
@@ -557,7 +564,7 @@ class TimeTableProcessor:
                 f'{group}_교과(군)_교사의_총시수',
                 f'{group}_교과(군)_과목의_총시수',
                 f'{group}_교과(군)_교사의_평균시수',
-                f'{group}_평균과목수'  # 추가
+                f'{group}_교과(군)_교사의_평균과목수'
             ])
             subject_group_column_map[group] = list(range(start_idx, start_idx + 5))
         subject_group_colors = {g: color_palette[i % len(color_palette)] for i, g in enumerate(sorted(all_subject_groups))}
@@ -752,7 +759,7 @@ class TimeTableProcessor:
             bar_chart.title = "교사수 및 평균시수"
             bar_chart.add_data(data_ref, titles_from_data=True)
             bar_chart.set_categories(cats)
-            ws3.add_chart(bar_chart, f"{get_column_letter(ws3.max_column + 2)}2")
+            ws3.add_chart(bar_chart, f"A{data_end_row + 3}")
 
             summary_start = data_end_row + 2
             ws3.cell(row=summary_start, column=1, value="과목수")
@@ -767,7 +774,7 @@ class TimeTableProcessor:
             pie.add_data(data, titles_from_data=True)
             pie.set_categories(labels)
             pie.title = "과목수별 비율"
-            ws3.add_chart(pie, f"{get_column_letter(ws3.max_column + 2)}{summary_start}")
+            ws3.add_chart(pie, f"A{summary_start + max_subjects + 2}")
 
         # 단일 학교 모드인 경우 세로 형태로 변환
         if single_school and len(school_data) == 1:
@@ -835,15 +842,7 @@ class TimeTableProcessor:
                     c.fill = formula_fill
 
         # 열 너비 자동 조정 (학교통계 시트)
-        if single_school and len(school_data) == 1:
-            ws3.column_dimensions['A'].width = 25
-            ws3.column_dimensions['B'].width = 15
-        else:
-            ws3.column_dimensions['A'].width = 25  # 학교명 열 너비
-            for column_cells in ws3.columns:
-                if column_cells[0].column_letter != 'A':  # 학교명 열 제외
-                    length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells)
-                    ws3.column_dimensions[column_cells[0].column_letter].width = max(length + 2, 12)
+        self.autofit_columns(ws3)
         # 네 번째 시트: 복수 교과(군) 조합 현황
         ws4 = wb.create_sheet(title="교과군조합현황")
         
@@ -904,10 +903,7 @@ class TimeTableProcessor:
                     cell.alignment = Alignment(horizontal='center', vertical='center')
         
         # 열 너비 자동 조정
-        ws4.column_dimensions['A'].width = 25  # 학교명
-        ws4.column_dimensions['B'].width = 30  # 교과(군) 조합
-        ws4.column_dimensions['C'].width = 10  # 교사수
-        ws4.column_dimensions['D'].width = 40  # 교사명
+        self.autofit_columns(ws4)
         
         # 눈금선 숨기기
         ws4.sheet_view.showGridLines = False    
