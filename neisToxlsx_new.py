@@ -1,6 +1,6 @@
-import pandas as pd
 import openpyxl
 import json
+import re
 from openpyxl.styles import Border, Side, Font, PatternFill, Alignment
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -186,12 +186,6 @@ class TimeTableProcessor:
                 self.file_text.insert(tk.END, f"• {os.path.basename(path)}\n")
             self.add_log("파일이 선택되었습니다.")
 
-    def add_log(self, message):
-        self.status_text.insert(tk.END, f"{message}\n")
-        self.status_text.see(tk.END)
-        self.root.update()
-
-
     def load_subject_group_mapping(self, json_path):
         """JSON 파일에서 교과(군) 모집 데이터를 불러오는 함수"""
         try:
@@ -283,8 +277,6 @@ class TimeTableProcessor:
             subject_group_mapping = self.load_subject_group_mapping("subject_group_mapping.json")
             self.add_log("교과(군) 매핑 데이터를 불러왔습니다.")
             
-            import re
-
             # 선택된 모든 파일 처리
             for file_path in self.file_paths:
                 # 파일명에서 괄호 안의 내용을 추출
