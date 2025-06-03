@@ -16,33 +16,6 @@ from datetime import datetime
 class TimeTableProcessor:
     def __init__(self):
         self.setup_gui()
-
-    def normalize_subject_name(self, name: str) -> str:
-        """Normalize subject names by converting digits or ASCII Roman numerals
-        to their Unicode counterparts for consistent dictionary matching."""
-        if not isinstance(name, str):
-            return name
-
-        # Replace ASCII Roman numerals with Unicode versions
-        name = name.replace('II', 'Ⅱ').replace('I', 'Ⅰ')
-
-        # Replace isolated digits 1 and 2 with Roman numerals
-        name = re.sub(r'(?<!\d)1(?!\d)', 'Ⅰ', name)
-        name = re.sub(r'(?<!\d)2(?!\d)', 'Ⅱ', name)
-
-        return name.strip()
-
-    def get_subject_group(self, subject: str, mapping: dict) -> str:
-        """Return the subject group for a given subject using the mapping.
-        Attempts a lookup with the original name first and falls back to a
-        normalized name if no match is found."""
-
-        key = subject.lstrip('*').strip()
-        group = mapping.get(key)
-        if group is None:
-            key_normalized = self.normalize_subject_name(key)
-            group = mapping.get(key_normalized, '기타')
-        return group
         
     def setup_gui(self):
         self.root = tk.Tk()
@@ -138,6 +111,59 @@ class TimeTableProcessor:
         # 종료 버튼
         quit_button = ttk.Button(bottom_frame, text="종료", command=self.root.quit)
         quit_button.pack(side=tk.RIGHT, padx=5)
+    
+    def normalize_subject_name(self, subject_name):
+        """과목명 정규화 함수 - 숫자와 특수문자 제거하여 매칭용 키 생성"""
+        if not subject_name:
+            return subject_name
+            
+        # 1. '*' 문자 제거
+        normalized = subject_name.lstrip('*').strip()
+        
+        # 2. 끝에 붙은 숫자 제거 (예: "수학1" -> "수학", "영어2" -> "영어")
+        normalized = re.sub(r'\d+$', '', normalized).strip()
+        
+        # 3. 로마숫자 제거 (예: "수학Ⅰ" -> "수학", "영어Ⅱ" -> "영어")
+        normalized = re.sub(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+$', '', normalized).strip()
+        
+        # 4. 괄호와 그 안의 내용 제거 (예: "수학(미적분)" -> "수학")
+        normalized = re.sub(r'\([^)]*\)$', '', normalized).strip()
+        
+        # 5. 레벨 표시 제거 (예: "수학 A" -> "수학", "영어 고급" -> "영어")
+        normalized = re.sub(r'\s+(A|B|C|고급|중급|초급|기초|심화)$', '', normalized).strip()
+        
+        # 디버깅용 로그
+        if normalized != subject_name.lstrip('*').strip():
+            print(f"과목명 정규화: '{subject_name}' -> '{normalized}'")
+            
+        return normalized
+    
+    def get_subject_group(self, subject_name, subject_group_mapping):
+        """과목명으로 교과(군) 찾기 - 정규화된 이름으로 매칭 시도"""
+        if not subject_name:
+            return '기타'
+            
+        # 1. 원본 이름으로 먼저 시도
+        original_key = subject_name.lstrip('*')
+        if original_key in subject_group_mapping:
+            return subject_group_mapping[original_key]
+        
+        # 2. 정규화된 이름으로 시도
+        normalized_key = self.normalize_subject_name(subject_name)
+        if normalized_key in subject_group_mapping:
+            print(f"정규화된 매칭 성공: '{subject_name}' -> '{normalized_key}' -> '{subject_group_mapping[normalized_key]}'")
+            return subject_group_mapping[normalized_key]
+        
+        # 3. 부분 매칭 시도 (정규화된 이름이 매핑 키에 포함되어 있는지)
+        for key, group in subject_group_mapping.items():
+            if normalized_key in key or key in normalized_key:
+                print(f"부분 매칭 성공: '{subject_name}' -> '{key}' -> '{group}'")
+                return group
+        
+        # 4. 매칭 실패시 기타로 분류하고 로그 출력
+        print(f"매칭 실패: '{subject_name}' (정규화: '{normalized_key}') -> '기타'")
+        return '기타'
+
     def clear_selection(self):
         """선택된 파일 목록 초기화"""
         self.file_text.delete('1.0', tk.END)
@@ -184,6 +210,7 @@ class TimeTableProcessor:
                 subprocess.Popen(['xdg-open', path])
         except Exception as e:
             self.add_log(f"파일 자동 열기에 실패했습니다: {e}")
+    
     def filter_subject_groups(self, subject_groups):
         """교과 그룹 필터링 규칙"""
         # 디버깅용 출력 추가
@@ -244,6 +271,7 @@ class TimeTableProcessor:
         result = sorted(filtered)
         print("처리 후 교과군:", result)
         return result
+    
     def select_files(self):
         file_paths = filedialog.askopenfilenames(
             title="시수배정현황 파일 선택",
@@ -263,11 +291,14 @@ class TimeTableProcessor:
     def load_subject_group_mapping(self, json_path):
         """JSON 파일에서 교과(군) 모집 데이터를 불러오는 함수"""
         try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            # BOM 제거를 위해 utf-8-sig 사용
+            with open(json_path, 'r', encoding='utf-8-sig') as f:
+                data = json.load(f)
+            print(f"[매핑 로드] 총 {len(data)}개 키를 로드했습니다. (예시: {list(data.keys())[:5]})")
+            return data
         except FileNotFoundError:
-            self.add_log("교과(군) 모집 파일을 찾을 수 없습니다.")
-            messagebox.showerror("Error", "교과(군) 모집 파일을 찾을 수 없습니다.")
+            print("교과(군) 매핑 파일을 찾을 수 없습니다.")
+            messagebox.showerror("Error", "교과(군) 매핑 파일을 찾을 수 없습니다.")
             return {}
 
     def extract_data(self, ws):
@@ -402,10 +433,11 @@ class TimeTableProcessor:
             error_msg = f"오류 발생: {str(e)}"
             self.add_log(error_msg)
             messagebox.showerror("Error", error_msg)
+    
     def save_results(self, school_data, output_path, subject_group_mapping, school_names, single_school=False):
         wb = openpyxl.Workbook()
         
-        # 첫 번째 시트: 교사별 시수 현황 (변경 없음)
+        # 첫 번째 시트: 교사별 시수 현황 (수정됨 - get_subject_group 사용)
         ws1 = wb.active
         ws1.title = "교사별시수현황"
         
@@ -427,7 +459,7 @@ class TimeTableProcessor:
             
             for teacher in sorted(teacher_data.keys()):
                 subject_groups = set(
-                    self.get_subject_group(item['과목'], subject_group_mapping)
+                    self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                     for item in teacher_data[teacher]
                 )
                 
@@ -438,7 +470,7 @@ class TimeTableProcessor:
                     ws1.cell(row=current_row, column=2, value=teacher)
                     ws1.cell(row=current_row, column=3, value=item['과목'])
                     ws1.cell(row=current_row, column=4, value=item['총시수'])
-                    subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+                    subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                     ws1.cell(row=current_row, column=5, value=subject_group)
                     current_row += 1
         self.autofit_columns(ws1)
@@ -450,7 +482,7 @@ class TimeTableProcessor:
                 max_len_c = max(max_len_c, len(str(value)))
         ws1.column_dimensions['C'].width = max(max_len_c + 2, 10)
 
-        # 두 번째 시트: 교사별 총계 (수정된 부분)
+        # 두 번째 시트: 교사별 총계 (수정됨 - get_subject_group 사용)
         ws2 = wb.create_sheet(title="교사별총시수")
         
         summary_headers = ['학교명', '교사명', '담당교과', '총시수', '담당과목 수', '담당과목명', '교과(군)조합']
@@ -480,9 +512,9 @@ class TimeTableProcessor:
         
         # 학교별로 정렬하여 데이터 작성
         for (school_name, teacher), items in sorted(merged_teacher_data.items()):
-            # 담당교과(군) 추출 및 정렬
+            # 담당교과(군) 추출 및 정렬 (수정된 부분)
             subject_groups = set(
-                self.get_subject_group(item['과목'], subject_group_mapping)
+                self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 for item in items
             )
             
@@ -498,9 +530,9 @@ class TimeTableProcessor:
             total_hours = sum(item['총시수'] for item in items)
             subject_count = len(set(item['과목'] for item in items))  # 중복 제거된 과목 수
 
-            # 교과(군) 조합 문자열 생성
+            # 교과(군) 조합 문자열 생성 (수정된 부분)
             original_groups = sorted(set(
-                self.get_subject_group(item['과목'], subject_group_mapping)
+                self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 for item in items
             ))
             combination_str = ' + '.join(original_groups) if len(original_groups) >= 2 else ""
@@ -529,7 +561,7 @@ class TimeTableProcessor:
                 
         self.autofit_columns(ws2)
         
-        # 세 번째 시트: 학교통계
+        # 세 번째 시트: 학교통계 (수정됨 - get_subject_group 사용)
         ws3 = wb.create_sheet(title="학교통계")
         
         # 헤더 생성
@@ -550,7 +582,6 @@ class TimeTableProcessor:
                     teacher_data[teacher] = []
                 teacher_data[teacher].append(item)
             
-            # max_subjects = max(max_subjects, max(len(subjects) for subjects in teacher_data.values()))
             # max_subjects 계산 수정
             if teacher_data.values():  # 값이 있는 경우에만 max 계산
                 current_max = max(len(subjects) for subjects in teacher_data.values())
@@ -559,16 +590,16 @@ class TimeTableProcessor:
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
             
-            # max_groups = max(max_groups, max(len(groups) for groups in teacher_subject_groups.values()))
             # max_groups 계산 수정
             if teacher_subject_groups.values():  # 값이 있는 경우에만 max 계산
                 current_max = max(len(groups) for groups in teacher_subject_groups.values())
                 max_groups = max(max_groups, current_max)   
+        
         # 1. 다과목지도 현황 헤더
         for i in range(1, max_subjects + 1):
             headers.extend([
@@ -576,12 +607,12 @@ class TimeTableProcessor:
                 f'{i}과목_비율'
             ])
         
-        # 2. 교과(군)별 통계 헤더 생성을 위한 모든 교과(군) 수집
+        # 2. 교과(군)별 통계 헤더 생성을 위한 모든 교과(군) 수집 (수정된 부분)
         all_subject_groups = set()
         for school in school_data:
             data = school['data']
             for item in data:
-                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 all_subject_groups.add(subject_group)
         
         # 교과(군)별 통계 헤더
@@ -635,7 +666,7 @@ class TimeTableProcessor:
             display = f"{header} {icon}" if icon else header
             ws3.cell(row=1, column=col, value=display)
         
-        # 데이터 입력 (각 학교별로)
+        # 데이터 입력 (각 학교별로) - 수정된 부분들이 포함됨
         current_row = 2
         for school in school_data:
             col = 1
@@ -671,10 +702,10 @@ class TimeTableProcessor:
                 ws3.cell(row=current_row, column=col+1, value=percentage)
                 col += 2
             
-            # 2. 교과(군)별 통계 데이터
+            # 2. 교과(군)별 통계 데이터 (수정된 부분)
             subject_group_stats = {}
             for item in data:
-                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 teacher = item['교사명']
                 hours = item['총시수']
                 
@@ -690,16 +721,14 @@ class TimeTableProcessor:
                 teacher_count = len(stats['teachers'])
                 total_hours = stats['total_hours']
                 
-                # 교과(군)별 평균과목수 계산
                 # 교과(군)별 평균과목수 계산 부분 수정
                 group_subjects = []  # set 대신 list 사용
                 for teacher in stats['teachers']:
                     teacher_subjects = set()  # 각 교사가 담당하는 해당 교과(군)의 과목들
                     for item in data:
                         if item['교사명'] == teacher:
-                            subject = item['과목'].lstrip('*')
-                            if self.get_subject_group(subject, subject_group_mapping) == group:
-                                teacher_subjects.add(subject)
+                            if self.get_subject_group(item['과목'], subject_group_mapping) == group:  # 수정된 부분
+                                teacher_subjects.add(item['과목'])
                     group_subjects.append(len(teacher_subjects))  # add 대신 append 사용
 
                 # 평균 과목 수 계산 - 전체 교사의 과목 수 합계를 교사 수로 나눔
@@ -748,11 +777,11 @@ class TimeTableProcessor:
                 ws3.cell(row=current_row, column=col + 4, value=avg_subjects)  # 평균과목수 입력
                 col += 5  # 컬럼 개수 5로 수정
             
-            # 3. 복수 교과(군) 통계 데이터
+            # 3. 복수 교과(군) 통계 데이터 (수정된 부분)
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
@@ -983,7 +1012,8 @@ class TimeTableProcessor:
         ws3.column_dimensions['A'].width = 40
         # B열은 비고 등의 짧은 값을 담으므로 고정 폭 지정
         ws3.column_dimensions['B'].width = 20
-        # 네 번째 시트: 복수 교과(군) 조합 현황
+        
+        # 네 번째 시트: 복수 교과(군) 조합 현황 (수정된 부분)
         ws4 = wb.create_sheet(title="교과군조합현황")
         
         # 헤더 설정
@@ -996,17 +1026,16 @@ class TimeTableProcessor:
             school_name = school['school_name']
             data = school['data']
             
-            # 교사별 담당 교과(군) 수집
+            # 교사별 담당 교과(군) 수집 (수정된 부분)
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
-
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)  # 수정된 부분
+                
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
             
-            # 교과(군) 조합별 교사 수집
             # 교과(군) 조합별 교사 수집
             group_combinations = {}
             for teacher, groups in teacher_subject_groups.items():
@@ -1065,6 +1094,7 @@ class TimeTableProcessor:
                     break
                 except PermissionError:
                     count += 1
+
     def run(self):
         self.root.mainloop()
 
