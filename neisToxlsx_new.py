@@ -16,6 +16,33 @@ from datetime import datetime
 class TimeTableProcessor:
     def __init__(self):
         self.setup_gui()
+
+    def normalize_subject_name(self, name: str) -> str:
+        """Normalize subject names by converting digits or ASCII Roman numerals
+        to their Unicode counterparts for consistent dictionary matching."""
+        if not isinstance(name, str):
+            return name
+
+        # Replace ASCII Roman numerals with Unicode versions
+        name = name.replace('II', 'Ⅱ').replace('I', 'Ⅰ')
+
+        # Replace isolated digits 1 and 2 with Roman numerals
+        name = re.sub(r'(?<!\d)1(?!\d)', 'Ⅰ', name)
+        name = re.sub(r'(?<!\d)2(?!\d)', 'Ⅱ', name)
+
+        return name.strip()
+
+    def get_subject_group(self, subject: str, mapping: dict) -> str:
+        """Return the subject group for a given subject using the mapping.
+        Attempts a lookup with the original name first and falls back to a
+        normalized name if no match is found."""
+
+        key = subject.lstrip('*').strip()
+        group = mapping.get(key)
+        if group is None:
+            key_normalized = self.normalize_subject_name(key)
+            group = mapping.get(key_normalized, '기타')
+        return group
         
     def setup_gui(self):
         self.root = tk.Tk()
@@ -400,7 +427,7 @@ class TimeTableProcessor:
             
             for teacher in sorted(teacher_data.keys()):
                 subject_groups = set(
-                    subject_group_mapping.get(item['과목'].lstrip('*'), '기타')
+                    self.get_subject_group(item['과목'], subject_group_mapping)
                     for item in teacher_data[teacher]
                 )
                 
@@ -411,8 +438,7 @@ class TimeTableProcessor:
                     ws1.cell(row=current_row, column=2, value=teacher)
                     ws1.cell(row=current_row, column=3, value=item['과목'])
                     ws1.cell(row=current_row, column=4, value=item['총시수'])
-                    subject_key = item['과목'].lstrip('*')
-                    subject_group = subject_group_mapping.get(subject_key, '기타')
+                    subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
                     ws1.cell(row=current_row, column=5, value=subject_group)
                     current_row += 1
         self.autofit_columns(ws1)
@@ -456,7 +482,7 @@ class TimeTableProcessor:
         for (school_name, teacher), items in sorted(merged_teacher_data.items()):
             # 담당교과(군) 추출 및 정렬
             subject_groups = set(
-                subject_group_mapping.get(item['과목'].lstrip('*'), '기타')
+                self.get_subject_group(item['과목'], subject_group_mapping)
                 for item in items
             )
             
@@ -474,7 +500,7 @@ class TimeTableProcessor:
 
             # 교과(군) 조합 문자열 생성
             original_groups = sorted(set(
-                subject_group_mapping.get(item['과목'].lstrip('*'), '기타')
+                self.get_subject_group(item['과목'], subject_group_mapping)
                 for item in items
             ))
             combination_str = ' + '.join(original_groups) if len(original_groups) >= 2 else ""
@@ -533,8 +559,7 @@ class TimeTableProcessor:
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject = item['과목'].lstrip('*')
-                subject_group = subject_group_mapping.get(subject, '기타')
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
@@ -556,8 +581,7 @@ class TimeTableProcessor:
         for school in school_data:
             data = school['data']
             for item in data:
-                subject = item['과목'].lstrip('*')
-                subject_group = subject_group_mapping.get(subject, '기타')
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
                 all_subject_groups.add(subject_group)
         
         # 교과(군)별 통계 헤더
@@ -650,8 +674,7 @@ class TimeTableProcessor:
             # 2. 교과(군)별 통계 데이터
             subject_group_stats = {}
             for item in data:
-                subject = item['과목'].lstrip('*')
-                subject_group = subject_group_mapping.get(subject, '기타')
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
                 teacher = item['교사명']
                 hours = item['총시수']
                 
@@ -675,7 +698,7 @@ class TimeTableProcessor:
                     for item in data:
                         if item['교사명'] == teacher:
                             subject = item['과목'].lstrip('*')
-                            if subject_group_mapping.get(subject, '기타') == group:
+                            if self.get_subject_group(subject, subject_group_mapping) == group:
                                 teacher_subjects.add(subject)
                     group_subjects.append(len(teacher_subjects))  # add 대신 append 사용
 
@@ -729,8 +752,7 @@ class TimeTableProcessor:
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject = item['과목'].lstrip('*')
-                subject_group = subject_group_mapping.get(subject, '기타')
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
@@ -978,9 +1000,8 @@ class TimeTableProcessor:
             teacher_subject_groups = {}
             for item in data:
                 teacher = item['교사명']
-                subject = item['과목'].lstrip('*')
-                subject_group = subject_group_mapping.get(subject, '기타')
-                
+                subject_group = self.get_subject_group(item['과목'], subject_group_mapping)
+
                 if teacher not in teacher_subject_groups:
                     teacher_subject_groups[teacher] = set()
                 teacher_subject_groups[teacher].add(subject_group)
