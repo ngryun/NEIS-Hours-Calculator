@@ -617,11 +617,42 @@ class TimeTableProcessor:
         
         # 교과(군)별 통계 헤더
         subject_group_column_map = {}
-        # 전문적인 파스텔 톤 색상 팔레트 적용
+        
+        # 🎨 개선된 세련된 색상 팔레트 (Material Design 3.0 & Modern UI 스타일)
         color_palette = [
-            'AED6F1', 'A9DFBF', 'F9E79F', 'F5CBA7',
-            'D2B4DE', 'A9CCE3', 'FADBD8', 'D7BDE2'
+            # 블루 계열 (신뢰감, 안정감)
+            'E3F2FD',  # Light Blue 50
+            'BBDEFB',  # Light Blue 100
+            
+            # 그린 계열 (성장, 자연)
+            'E8F5E8',  # Light Green 50  
+            'C8E6C9',  # Light Green 100
+            
+            # 퍼플 계열 (창의성, 우아함)
+            'F3E5F5',  # Purple 50
+            'E1BEE7',  # Purple 100
+            
+            # 오렌지 계열 (활력, 따뜻함)
+            'FFF3E0',  # Orange 50
+            'FFE0B2',  # Orange 100
+            
+            # 틸 계열 (균형, 명료함)
+            'E0F2F1',  # Teal 50
+            'B2DFDB',  # Teal 100
+            
+            # 인디고 계열 (지성, 직관)
+            'E8EAF6',  # Indigo 50
+            'C5CAE9',  # Indigo 100
+            
+            # 핑크 계열 (친근감, 따뜻함)
+            'FCE4EC',  # Pink 50
+            'F8BBD9',  # Pink 100
+            
+            # 라임 계열 (에너지, 신선함)
+            'F9FBE7',  # Lime 50
+            'F0F4C3',  # Lime 100
         ]
+        
         for idx, group in enumerate(sorted(all_subject_groups)):
             start_idx = len(headers) + 1
             headers.extend([
@@ -829,8 +860,15 @@ class TimeTableProcessor:
             data_ref = Reference(ws3, min_col=teacher_col, max_col=avg_col, min_row=1, max_row=data_end_row)
             bar_chart = BarChart()
             bar_chart.title = "교사수 및 평균시수"
+            # 🎨 차트 스타일 개선
+            bar_chart.style = 10  # 모던한 스타일 적용
+            bar_chart.width = 15  # 너비 증가
+            bar_chart.height = 10  # 높이 증가
             bar_chart.add_data(data_ref, titles_from_data=True)
             bar_chart.set_categories(cats)
+            # 데이터 레이블 표시
+            bar_chart.dataLabels = DataLabelList()
+            bar_chart.dataLabels.showVal = True
             ws3.add_chart(bar_chart, f"A{data_end_row + 3}")
 
             summary_start = data_end_row + 2
@@ -846,6 +884,14 @@ class TimeTableProcessor:
             pie.add_data(data, titles_from_data=True)
             pie.set_categories(labels)
             pie.title = "과목수별 비율"
+            # 🎨 파이차트 스타일 개선
+            pie.style = 7  # 세련된 스타일 적용
+            pie.width = 12
+            pie.height = 10
+            # 데이터 레이블에 퍼센트 표시
+            pie.dataLabels = DataLabelList()
+            pie.dataLabels.showPercent = True
+            pie.dataLabels.showVal = False
             ws3.add_chart(pie, f"A{summary_start + max_subjects + 2}")
 
         # 단일 학교 모드인 경우 세로 형태로 변환
@@ -860,7 +906,7 @@ class TimeTableProcessor:
                 ws3.cell(row=idx, column=1, value=h)
                 ws3.cell(row=idx, column=2, value=v)
 
-            # ----- Charts for single school -----
+            # ----- 🎨 개선된 Charts for single school -----
             # 교과(군)별 평균시수 막대그래프 데이터 수집
             avg_rows = []
             for r in range(2, ws3.max_row + 1):
@@ -879,13 +925,20 @@ class TimeTableProcessor:
                 data = Reference(ws3, min_col=2, min_row=chart_start, max_row=chart_start + len(avg_rows) - 1)
                 bar = BarChart()
                 bar.title = "교과(군)별 평균시수"
+                # 🎨 막대그래프 스타일 대폭 개선
+                bar.style = 12  # 더 세련된 스타일
+                bar.width = 15  # 너비 증가
+                bar.height = 10  # 높이 증가
                 bar.add_data(data, titles_from_data=False)
                 bar.set_categories(cats)
                 bar.legend = None
+                # 📊 데이터 레이블 개선 - 소수점 둘째자리까지 표시
                 bar.dataLabels = DataLabelList()
                 bar.dataLabels.showVal = True
-                bar.width = 12
-                bar.height = 8
+                bar.dataLabels.numberFormat = "0.00"  # 🎯 소수점 둘째자리까지 표시
+                # 축 레이블 개선
+                bar.y_axis.title = "평균 시수"
+                bar.x_axis.title = "교과(군)"
                 ws3.add_chart(bar, "D2")
 
             # n과목 교사 비율 도넛차트 데이터 수집
@@ -904,26 +957,36 @@ class TimeTableProcessor:
                 cats = Reference(ws3, min_col=1, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
                 data = Reference(ws3, min_col=2, min_row=donut_start, max_row=donut_start + len(ratio_rows) - 1)
                 donut = DoughnutChart()
-                donut.style = 3  # 차트 디자인 3 적용
+                # 🎨 도넛차트 스타일 대폭 개선
+                donut.style = 8  # 더 세련된 스타일
                 donut.title = "과목수별 비율"
+                donut.width = 15  # 너비 증가
+                donut.height = 10  # 높이 증가
                 donut.add_data(data, titles_from_data=False)
                 donut.set_categories(cats)
+                # 📊 데이터 레이블 개선
                 donut.dataLabels = DataLabelList()
                 donut.dataLabels.showPercent = True
-                donut.width = 12
-                donut.height = 8
+                donut.dataLabels.showVal = False
+                donut.dataLabels.showCatName = True  # 카테고리명도 표시
+                # 홀 크기 조정 (더 세련된 비율)
+                donut.holeSize = 40
                 ws3.add_chart(donut, "L2")
 
-        # 스타일 적용
+        # 🎨 개선된 스타일 적용
         thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
+            left=Side(style='thin', color='E0E0E0'),  # 더 부드러운 테두리 색상
+            right=Side(style='thin', color='E0E0E0'),
+            top=Side(style='thin', color='E0E0E0'),
+            bottom=Side(style='thin', color='E0E0E0')
         )
-        # 대시보드 스타일 헤더용 그라데이션 배경 설정
-        header_fill = GradientFill(stop=('DCEFFB', 'E8DAEF'))
-        header_font = Font(bold=True)
+        
+        # 🎨 더 세련된 헤더 그라데이션 (Material Design 스타일)
+        header_fill = GradientFill(
+            stop=('F5F5F5', 'E8EAF6'),  # 연한 회색에서 연한 인디고로
+            type='linear'
+        )
+        header_font = Font(bold=True, color='37474F')  # 더 부드러운 다크 그레이
         
         # 모든 시트에 스타일 적용
         for ws in [ws1, ws2, ws3]:
@@ -935,7 +998,7 @@ class TimeTableProcessor:
                         cell.font = header_font
                         cell.fill = header_fill
 
-        # 교과별 색상 적용 및 평균시수 서식 지정
+        # 🎨 교과별 색상 적용 및 평균시수 서식 지정 (개선된 색상)
         if single_school and len(school_data) == 1:
             # 세로 레이아웃에 맞게 색상 및 서식 적용
             for row in range(2, ws3.max_row + 1):
@@ -947,7 +1010,7 @@ class TimeTableProcessor:
                         ws3.cell(row=row, column=1).fill = fill
                         value_cell.fill = fill
                 if '평균시수' in label:
-                    value_cell.number_format = '0.00'
+                    value_cell.number_format = '0.00'  # 소수점 둘째자리
         else:
             for group, cols in subject_group_column_map.items():
                 fill = PatternFill(start_color=subject_group_colors[group], end_color=subject_group_colors[group], fill_type='solid')
@@ -956,26 +1019,26 @@ class TimeTableProcessor:
                     for col_idx in cols:
                         ws3.cell(row=row, column=col_idx).fill = fill
                     if row >= 2:
-                        ws3.cell(row=row, column=avg_col).number_format = '0.00'
+                        ws3.cell(row=row, column=avg_col).number_format = '0.00'  # 소수점 둘째자리
 
             avg_hours_col = headers.index('평균시수') + 1
             for row in range(2, data_end_row + 1):
-                ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'
+                ws3.cell(row=row, column=avg_hours_col).number_format = '0.00'  # 소수점 둘째자리
 
-            # 조건부 서식: 데이터 바 및 컬러 스케일 적용
+            # 🎨 개선된 조건부 서식: 더 세련된 색상의 데이터 바 및 컬러 스케일
             teacher_col_letter = get_column_letter(teacher_col)
             avg_hours_col_letter = get_column_letter(avg_hours_col)
             ws3.conditional_formatting.add(
                 f"{teacher_col_letter}2:{teacher_col_letter}{data_end_row}",
-                DataBarRule(start_type='num', start_value=0, end_type='max', color='5DADE2')
+                DataBarRule(start_type='num', start_value=0, end_type='max', color='42A5F5')  # 더 세련된 블루
             )
             ws3.conditional_formatting.add(
                 f"{avg_hours_col_letter}2:{avg_hours_col_letter}{data_end_row}",
-                ColorScaleRule(start_type='min', start_color='FFFFFF', mid_type='percentile', mid_value=50,
-                               mid_color='FFF5CC', end_type='max', end_color='A9DFBF')
+                ColorScaleRule(start_type='min', start_color='F8F9FA', mid_type='percentile', mid_value=50,
+                               mid_color='E8F5E8', end_type='max', end_color='4CAF50')  # 더 세련된 그린 계열
             )
 
-            # KPI 카드 작성
+            # 🎨 개선된 KPI 카드 (더 세련된 디자인)
             kpi_start = ws3.max_row + 2
             kpis = [
                 ('학교수', len(school_data), '🏫'),
@@ -995,12 +1058,13 @@ class TimeTableProcessor:
                                 end_row=kpi_start, end_column=end_col)
                 cell = ws3.cell(row=kpi_start, column=start_col, value=f"{icon} {label}: {value}")
                 cell.alignment = Alignment(horizontal='center', vertical='center')
-                cell.font = Font(bold=True)
-                cell.fill = GradientFill(stop=('FFFFFF', 'D6EAF8'))
-            ws3.row_dimensions[kpi_start].height = 25
+                cell.font = Font(bold=True, color='263238')  # 더 부드러운 다크 컬러
+                # 🎨 더 세련된 그라데이션
+                cell.fill = GradientFill(stop=('FAFAFA', 'E3F2FD'), type='linear')
+            ws3.row_dimensions[kpi_start].height = 30  # 높이 증가
 
-        # 수식 셀 색상 지정
-        formula_fill = PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
+        # 🎨 수식 셀 색상 개선 (더 부드러운 노란색)
+        formula_fill = PatternFill(start_color='FFFDE7', end_color='FFFDE7', fill_type='solid')
         for row_cells in ws3.iter_rows(min_row=2, max_row=ws3.max_row):
             for c in row_cells:
                 if c.data_type == 'f':
